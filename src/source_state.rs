@@ -1,6 +1,6 @@
 use ab_glyph::PxScale;
 use image::RgbImage;
-use imageproc::drawing::text_size;
+use crate::fonts::text_size;
 
 use crate::constants::LayoutParams;
 use crate::fonts::Fonts;

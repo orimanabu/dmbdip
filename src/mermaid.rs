@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use ab_glyph::PxScale;
 use image::{Rgb, RgbImage};
-use imageproc::drawing::{draw_text_mut, text_size};
+use crate::fonts::{draw_text_mut, text_size};
 
 use crate::fonts::Fonts;
 use crate::theme::Theme;

@@ -13,7 +13,7 @@ dmbdip --help
 
 When given a markdown file, opens it full-width with the file list hidden. Press Left to reveal the file list and browse sibling files. When given a directory (or no argument), opens the file browser with a file list on the left and markdown preview on the right.
 
-**Requirements:**  a terminal supporting the [Terminal graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/), DejaVu fonts installed.
+**Requirements:**  a terminal supporting the [Terminal graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/), DejaVu fonts installed. For CJK (Japanese, Chinese, ...) text, a CJK font such as Noto Sans CJK is used automatically as fallback when installed.
 
 ## Installation
 

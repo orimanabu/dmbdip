@@ -6,6 +6,8 @@
 - **Terminal:** Kitty (graphics protocol, raw RGB f=24, double-buffered)
 - **Key crates:** `image`, `base64`, `crossterm`, `pulldown-cmark`, `ab_glyph`, `imageproc`, `notify-debouncer-mini`, `mermaid-rs-renderer`, `resvg`, `usvg`
 - **Fonts:** DejaVu Sans (regular, bold, oblique) + DejaVu Sans Mono
+- **Font fallback:** `fonts::FontFace` resolves each char to the primary font or a fallback (CJK) font; always use `fonts::{text_size, draw_text_mut}` instead of the imageproc versions
+- **Line breaking:** `text::split_breakable` allows breaks between CJK chars (with simple kinsoku); soft breaks between CJK chars are not rendered as spaces
 
 ## Architecture
 

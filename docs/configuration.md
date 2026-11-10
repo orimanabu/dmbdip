@@ -50,6 +50,7 @@ cursor_margin = 6
 [fonts]
 sans = "DejaVu Sans"
 mono = "DejaVu Sans Mono"
+fallback = ["Noto Sans CJK JP"]
 
 [browser]
 extra_extensions = ["rs", "py", "toml", "js"]
@@ -102,6 +103,7 @@ Font family names resolved through the system font library (fontconfig on Linux,
 |-------|------|---------|-------------|
 | `sans` | string | `"DejaVu Sans"` | Sans-serif font family (used for body text, headings, lists) |
 | `mono` | string | `"DejaVu Sans Mono"` | Monospace font family (used for code blocks and inline code) |
+| `fallback` | list of strings | *(auto)* | Fallback font families used, in order, for characters missing from the main fonts (e.g. Japanese/Chinese text). When unset, the first installed font among common CJK families (Noto Sans CJK JP, Source Han Sans, Hiragino Sans, IPAGothic, ...) is used. |
 
 ## `[browser]` -- File Browser
 

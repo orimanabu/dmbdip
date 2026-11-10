@@ -1,8 +1,7 @@
-use ab_glyph::FontVec;
 use image::Rgb;
 use pulldown_cmark::HeadingLevel;
 
-use crate::fonts::Fonts;
+use crate::fonts::{FontFace, Fonts};
 use crate::theme::Theme;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -21,7 +20,7 @@ pub(crate) struct Span {
 }
 
 impl Span {
-    pub(crate) fn font<'a>(&self, fonts: &'a Fonts) -> &'a FontVec {
+    pub(crate) fn font<'a>(&self, fonts: &'a Fonts) -> &'a FontFace {
         match self.style {
             SpanStyle::Normal => &fonts.regular,
             SpanStyle::Bold => &fonts.bold,

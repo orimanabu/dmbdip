@@ -1,6 +1,7 @@
 use ab_glyph::PxScale;
 use image::{Rgb, RgbImage};
-use imageproc::drawing::{draw_filled_rect_mut, draw_line_segment_mut, draw_text_mut, text_size};
+use imageproc::drawing::{draw_filled_rect_mut, draw_line_segment_mut};
+use crate::fonts::{draw_text_mut, text_size};
 use imageproc::rect::Rect;
 use pulldown_cmark::HeadingLevel;
 
@@ -393,20 +394,23 @@ fn compute_total_height(
     h + layout.paragraph_gap + vp_height / 2
 }
 
-fn wrap_plain_text(text: &str, font: &ab_glyph::FontVec, scale: PxScale, max_width: u32) -> Vec<String> {
+fn wrap_plain_text(text: &str, font: &crate::fonts::FontFace, scale: PxScale, max_width: u32) -> Vec<String> {
     let space_w = text_size(scale, font, " ").0;
     let mut lines: Vec<String> = Vec::new();
     let mut current_line = String::new();
     let mut current_width: u32 = 0;
 
-    for word in text.split_whitespace() {
+    let pieces = text
+        .split_whitespace()
+        .flat_map(|w| crate::text::split_breakable(w).into_iter().enumerate());
+    for (pi, word) in pieces {
         let word_w = text_size(scale, font, word).0;
-        let needed = if current_line.is_empty() { 0 } else { space_w } + word_w;
+        let sep = !current_line.is_empty() && pi == 0;
+        let needed = if sep { space_w } else { 0 } + word_w;
         if !current_line.is_empty() && current_width + needed > max_width {
             lines.push(std::mem::take(&mut current_line));
             current_width = 0;
-        }
-        if !current_line.is_empty() {
+        } else if sep {
             current_line.push(' ');
             current_width += space_w;
         }

@@ -51,6 +51,7 @@ pub(crate) struct LayoutConfig {
 pub(crate) struct FontsConfig {
     pub(crate) sans: Option<String>,
     pub(crate) mono: Option<String>,
+    pub(crate) fallback: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Default)]
@@ -184,6 +185,7 @@ pub(crate) fn debug_config(config: &Config) {
 
     check_opt!("fonts", "sans", config.fonts.sans);
     check_opt!("fonts", "mono", config.fonts.mono);
+    check_opt!("fonts", "fallback", config.fonts.fallback);
 
     check_opt!("browser", "extra_extensions", config.browser.extra_extensions);
 

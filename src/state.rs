@@ -1,6 +1,7 @@
-use ab_glyph::{FontVec, PxScale};
+use ab_glyph::PxScale;
+use crate::fonts::FontFace;
 use image::RgbImage;
-use imageproc::drawing::text_size;
+use crate::fonts::text_size;
 
 use crate::constants::{LayoutParams, LIST_INDENT_PER_LEVEL};
 use crate::fonts::Fonts;
@@ -303,7 +304,7 @@ fn block_contains_text(block: &Block, query: &str) -> bool {
 fn find_highlights_in_text(
     text: &str,
     query: &str,
-    font: &FontVec,
+    font: &FontFace,
     scale: PxScale,
     line_height: u32,
     x: u32,

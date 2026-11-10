@@ -1,6 +1,7 @@
 use ab_glyph::PxScale;
 use image::RgbImage;
-use imageproc::drawing::{draw_filled_rect_mut, draw_text_mut, text_size};
+use imageproc::drawing::draw_filled_rect_mut;
+use crate::fonts::{draw_text_mut, text_size};
 use imageproc::rect::Rect;
 
 use crate::fonts::Fonts;
@@ -17,6 +18,64 @@ fn split_preserving_indent(text: &str) -> (usize, Vec<&str>) {
     (leading, words)
 }
 
+/// Characters of scripts written without spaces between words (Han, kana,
+/// CJK punctuation, fullwidth forms), where a line may break between any two
+/// characters. Hangul is excluded since Korean uses spaces between words.
+pub(crate) fn is_cjk(c: char) -> bool {
+    matches!(c as u32,
+        0x2E80..=0x2FDF      // CJK radicals, Kangxi radicals
+        | 0x3000..=0x303F    // CJK symbols and punctuation
+        | 0x3040..=0x30FF    // Hiragana, Katakana
+        | 0x3100..=0x312F    // Bopomofo
+        | 0x31C0..=0x31FF    // CJK strokes, Katakana phonetic extensions
+        | 0x3200..=0x33FF    // Enclosed CJK, CJK compatibility
+        | 0x3400..=0x4DBF    // CJK extension A
+        | 0x4E00..=0x9FFF    // CJK unified ideographs
+        | 0xF900..=0xFAFF    // CJK compatibility ideographs
+        | 0xFE30..=0xFE4F    // CJK compatibility forms
+        | 0xFF00..=0xFFEF    // Halfwidth and fullwidth forms
+        | 0x20000..=0x3FFFF  // CJK extensions B+
+    )
+}
+
+/// Characters that must not start a line (closing brackets, punctuation,
+/// small kana, prolonged sound mark) — a simple form of Japanese kinsoku.
+fn no_break_before(c: char) -> bool {
+    "、。，．,.:;!?！？：；・）〕］｝〉》」』】〙〗〟’”｠»)]}ゝゞーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖ々〻‐゠–〜～…‥".contains(c)
+}
+
+/// Characters that must not end a line (opening brackets).
+fn no_break_after(c: char) -> bool {
+    "（〔［｛〈《「『【〘〖〝‘“｟«([{".contains(c)
+}
+
+/// Splits a whitespace-free word into pieces at positions where a line break
+/// is allowed (around CJK characters). Pieces are joined without spaces.
+pub(crate) fn split_breakable(word: &str) -> Vec<&str> {
+    let mut pieces = Vec::new();
+    let mut start = 0;
+    let mut prev: Option<char> = None;
+    for (i, c) in word.char_indices() {
+        if let Some(p) = prev {
+            let breakable = (is_cjk(p) || is_cjk(c)) && !no_break_before(c) && !no_break_after(p);
+            if breakable {
+                pieces.push(&word[start..i]);
+                start = i;
+            }
+        }
+        prev = Some(c);
+    }
+    pieces.push(&word[start..]);
+    pieces
+}
+
+fn ends_with_cjk(spans: &[Span]) -> bool {
+    spans
+        .last()
+        .and_then(|s| s.text.chars().last())
+        .is_some_and(is_cjk)
+}
+
 pub(crate) fn wrap_spans(spans: &[Span], fonts: &Fonts, scale: PxScale, max_width: u32) -> Vec<Vec<Span>> {
     let mut lines: Vec<Vec<Span>> = Vec::new();
     let mut current_line: Vec<Span> = Vec::new();
@@ -27,14 +86,9 @@ pub(crate) fn wrap_spans(spans: &[Span], fonts: &Fonts, scale: PxScale, max_widt
         let font = span.font(fonts);
         let (leading_spaces, words) = split_preserving_indent(&span.text);
 
+        // Whitespace-only spans (e.g. soft breaks) are handled through
+        // `prev_ends_space` of the following span.
         if words.is_empty() {
-            if !current_line.is_empty() {
-                current_width += space_w;
-                current_line.push(Span {
-                    text: " ".to_string(),
-                    style: SpanStyle::Normal,
-                });
-            }
             continue;
         }
 
@@ -43,13 +97,27 @@ pub(crate) fn wrap_spans(spans: &[Span], fonts: &Fonts, scale: PxScale, max_widt
         } else {
             false
         };
+        // A soft break between two CJK characters must not become a space.
+        let prev_is_soft_break = si > 0 && spans[si - 1].text.trim().is_empty();
+        let joins_cjk = prev_is_soft_break
+            && leading_spaces == 0
+            && ends_with_cjk(&current_line)
+            && words[0].starts_with(is_cjk);
         let need_sep_before_first =
-            !current_line.is_empty() && (leading_spaces > 0 || prev_ends_space);
+            !current_line.is_empty() && (leading_spaces > 0 || prev_ends_space) && !joins_cjk;
 
-        for (wi, word) in words.iter().enumerate() {
+        let pieces = words.iter().enumerate().flat_map(|(wi, word)| {
+            split_breakable(word)
+                .into_iter()
+                .enumerate()
+                .map(move |(pi, piece)| (wi, pi, piece))
+        });
+        for (wi, pi, word) in pieces {
             let word_w = text_size(scale, font, word).0;
 
-            let need_space = if wi == 0 {
+            let need_space = if pi > 0 {
+                false
+            } else if wi == 0 {
                 need_sep_before_first
             } else {
                 true
@@ -59,7 +127,7 @@ pub(crate) fn wrap_spans(spans: &[Span], fonts: &Fonts, scale: PxScale, max_widt
             if current_width > 0 && total > max_width {
                 lines.push(std::mem::take(&mut current_line));
                 current_width = 0;
-                if span.style == SpanStyle::Code && wi == 0 && leading_spaces > 0 {
+                if span.style == SpanStyle::Code && wi == 0 && pi == 0 && leading_spaces > 0 {
                     let indent: String = " ".repeat(leading_spaces);
                     let indent_w = text_size(scale, font, &indent).0;
                     current_line.push(Span {
@@ -82,7 +150,7 @@ pub(crate) fn wrap_spans(spans: &[Span], fonts: &Fonts, scale: PxScale, max_widt
                 }
             }
 
-            if wi == 0 && current_width == 0 && leading_spaces > 0 {
+            if wi == 0 && pi == 0 && current_width == 0 && leading_spaces > 0 {
                 let indent: String = " ".repeat(leading_spaces);
                 let indent_w = text_size(scale, font, &indent).0;
                 current_line.push(Span {
@@ -168,6 +236,58 @@ pub(crate) fn draw_spans(
 mod tests {
     use super::*;
     use crate::test_helpers::test_fonts;
+
+    fn normal(text: &str) -> Span {
+        Span { text: text.to_string(), style: SpanStyle::Normal }
+    }
+
+    fn line_text(line: &[Span]) -> String {
+        spans_to_plain(line)
+    }
+
+    #[test]
+    fn split_breakable_cjk() {
+        assert_eq!(split_breakable("hello"), vec!["hello"]);
+        assert_eq!(split_breakable("日本語"), vec!["日", "本", "語"]);
+        assert_eq!(split_breakable("abc日本"), vec!["abc", "日", "本"]);
+        // Closing punctuation stays attached to the preceding char,
+        // opening brackets to the following one.
+        assert_eq!(split_breakable("「本」。"), vec!["「本」。"]);
+        assert_eq!(split_breakable("です。「か"), vec!["で", "す。", "「か"]);
+    }
+
+    #[test]
+    fn wrap_spans_breaks_cjk_without_spaces() {
+        let fonts = test_fonts();
+        let scale = PxScale::from(18.0);
+        let text = "日本語の文章は単語の間に空白がないので文字単位で折り返す必要があります";
+        let lines = wrap_spans(&[normal(text)], &fonts, scale, 200);
+        assert!(lines.len() > 1, "CJK text should wrap");
+        let joined: String = lines.iter().map(|l| line_text(l)).collect();
+        assert_eq!(joined, text, "no spaces should be inserted when wrapping CJK");
+        for line in &lines {
+            assert!(text_size(scale, &fonts.regular, &line_text(line)).0 <= 200);
+        }
+    }
+
+    #[test]
+    fn wrap_spans_soft_break_between_cjk_is_not_a_space() {
+        let fonts = test_fonts();
+        let scale = PxScale::from(18.0);
+        let spans = vec![normal("日本語"), normal(" "), normal("続き"), normal(" "), normal("next")];
+        let lines = wrap_spans(&spans, &fonts, scale, 2000);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(line_text(&lines[0]), "日本語続き next");
+    }
+
+    #[test]
+    fn wrap_spans_keeps_space_in_latin_text() {
+        let fonts = test_fonts();
+        let scale = PxScale::from(18.0);
+        let spans = vec![normal("foo"), normal(" "), normal("bar")];
+        let lines = wrap_spans(&spans, &fonts, scale, 2000);
+        assert_eq!(line_text(&lines[0]), "foo bar");
+    }
 
     #[test]
     fn wrap_spans_respects_width() {
